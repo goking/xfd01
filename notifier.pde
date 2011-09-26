@@ -16,7 +16,7 @@ const int BUZZER_PIN  = 6;
 const int RELAY_PIN   = 5;
 const int SD_CS_PIN   = 4;
 
-const int PLAY_REPEAT_NUM = 5;
+const int PLAY_REPEAT_NUM = 10;
 
 // Enter a MAC address and IP address
 byte MAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
