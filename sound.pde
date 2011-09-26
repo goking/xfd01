@@ -8,9 +8,7 @@ const int melody[] = {
 const int noteDurations[] = {
   4, 8, 8, 4,4,4,4,4,4 };
 
-int lastSwitchState = HIGH;
-
-boolean soundTone() {
+boolean playTone() {
   int toneCount = 0;
   // iterate over the notes of the melody:
   for (int thisNote = 0; thisNote < sizeof(melody); thisNote++) {
@@ -39,25 +37,10 @@ boolean soundTone() {
 boolean waitUntilBreak(int duration) {
   int count = duration / 5;
   for (int i = 0; i < count; i++) {
-    if (!canPlaySound()) {
+    if (interrupted) {
       return false;
     }
     delay(5);
   }
   return true;
-}
-
-boolean canPlaySound() {
-  int switchState = digitalRead(SWITCH_PIN);
-  if (switchState == LOW) {
-    if (lastSwitchState != switchState) {
-      return false;
-    }
-  }
-  lastSwitchState = switchState;
-  return true;
-}
-
-boolean resetSwitchState() {
-  lastSwitchState = digitalRead(SWITCH_PIN);
 }

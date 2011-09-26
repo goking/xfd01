@@ -16,6 +16,8 @@ const int BUZZER_PIN  = 6;
 const int RELAY_PIN   = 5;
 const int SD_CS_PIN   = 4;
 
+const int PLAY_REPEAT_NUM = 5;
+
 // Enter a MAC address and IP address
 byte MAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 byte IP[4];
@@ -24,6 +26,8 @@ const int REQUEST_LINE_SIZE = 100;
 
 File ipFile;
 Server server(80);
+
+boolean interrupted = false;
 
 void setup() {
   pinMode(SWITCH_PIN, INPUT);
@@ -70,6 +74,8 @@ void setup() {
   
   Ethernet.begin(MAC, IP);
   server.begin();
+  
+  attachInterrupt(0, interrupt, FALLING);
 }
 
 void loop() {
@@ -128,10 +134,17 @@ void loop() {
     
     digitalWrite(LED_PIN, LOW);
     if (requestIsNotify) {
+      interrupted = false;
       digitalWrite(RELAY_PIN, HIGH);
-      resetSwitchState();
-      while (soundTone());
-      digitalWrite(RELAY_PIN, LOW);
+      for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
+        boolean completed = playTone();
+        if (!completed) break; 
+      }
     }
   }
+}
+
+void interrupt() {
+  interrupted = true;
+  digitalWrite(RELAY_PIN, LOW);
 }
