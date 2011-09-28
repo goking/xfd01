@@ -38,39 +38,7 @@ void setup() {
   digitalWrite(LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
   
-  Serial.begin(9600);
-  Serial.print("Initializing SD card...");
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin 
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
-  // or the SD library functions will not work. 
-  pinMode(SS_PIN, OUTPUT);
-   
-  if (!SD.begin(SD_CS_PIN)) {
-    Serial.println("initialization failed!");
-    return;
-  }
-  Serial.println("initialization done.");
-    
-  // re-open the file for reading:
-  ipFile = SD.open("test.txt");
-  if (ipFile) {
-    Serial.println("test.txt:");
-    
-    // read from the file until there's nothing else in it:
-    for (int i = 0; i < sizeof(IP); i++) {
-      if (!ipFile.available()) {
-         Serial.println("file is too short.");
-         break;
-      }
-      IP[i] = ipFile.read();
-    }
-    // close the file:
-    ipFile.close();
-  } else {
-  	// if the file didn't open, print an error:
-    Serial.println("error opening test.txt");
-  }
+  readIP();
   
   Ethernet.begin(MAC, IP);
   server.begin();
@@ -141,6 +109,28 @@ void loop() {
         if (!completed) break; 
       }
     }
+  }
+}
+
+void readIP() {
+  pinMode(SS_PIN, OUTPUT);
+   
+  if (!SD.begin(SD_CS_PIN)) {
+    return;
+  }    
+  // re-open the file for reading:
+  ipFile = SD.open("ipaddr.bin");
+  if (ipFile) {    
+    // read from the file until there's nothing else in it:
+    for (int i = 0; i < sizeof(IP); i++) {
+      if (!ipFile.available()) {
+         // file is too short.
+         break;
+      }
+      IP[i] = ipFile.read();
+    }
+    // close the file:
+    ipFile.close();
   }
 }
 
