@@ -30,6 +30,7 @@ const int INACTIVE = 0;
 const int NOP = -1;
 
 const String SMTP_HELO = "HELO";
+const String SMTP_EHLO = "EHLO";
 const String SMTP_MAIL = "MAIL";
 const String SMTP_RCPT = "RCPT";
 const String SMTP_DATA = "DATA";
@@ -64,12 +65,17 @@ void setup() {
     digitalWrite(LED_PIN, HIGH);
   }
 
+  Serial.begin(9600);
+
   readFile("ipaddr.bin").getBytes(IP, 5);
-  
+  Serial.println(IP[0],DEC);
+  Serial.println(IP[1],DEC);
+  Serial.println(IP[2],DEC);
+  Serial.println(IP[3],DEC);
+
   Ethernet.begin(MAC, IP);
   server.begin();
   
-  Serial.begin(9600);
   Serial.println("SD CARD!");
   _fqdn = readFile("fqdn.txt");
   Serial.println(_fqdn);
@@ -82,54 +88,67 @@ void setup() {
 }
 
 void loop() {
-  // listen for incoming clients
-  Client client = server.available();
-  if (client) {
-    int result = processSmtp(&client);
-    // give the web browser time to receive the data
+  while (!server.established()) {
     delay(5);
-    // close the connection:
-    client.stop();
-    
-    if (result == ACTIVE) {
-      if (_state == INACTIVE) {
-        interrupted = false;
-        digitalWrite(LED_PIN, HIGH);
-        /*
-        digitalWrite(RELAY_PIN, HIGH);
-        for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
-          boolean completed = playTone();
-          if (!completed) break; 
-        }
-        */
-      }
-      _state = ACTIVE;
-    } else if (result == INACTIVE) {
-      digitalWrite(LED_PIN, LOW);
-      //digitalWrite(RELAY_PIN, LOW);
-      _state = INACTIVE;
+  }  
+  server.write("220 arduino smtp server\r\n");
+  // listen for incoming clients 
+  int result = NOP;
+  while(server.established()) {
+    Client client = server.available();
+    if (client) { 
+      result = processSmtp(&client);
+      // give the web browser time to receive the data
+      delay(5);
+      // close the connection:
+      client.stop();
+      break;
     }
+  }
+  
+  if (result == ACTIVE) {
+    if (_state == INACTIVE) {
+      interrupted = false;
+      digitalWrite(LED_PIN, HIGH);
+      /*
+      digitalWrite(RELAY_PIN, HIGH);
+      for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
+        boolean completed = playTone();
+        if (!completed) break; 
+      }
+      */
+    }
+    _state = ACTIVE;
+  } else if (result == INACTIVE) {
+    digitalWrite(LED_PIN, LOW);
+    //digitalWrite(RELAY_PIN, LOW);
+    _state = INACTIVE;
   }
 }
 
 int processSmtp(Client* client) {
   boolean currentLineMayBeSubject = true;
   boolean readingHeader = true;
-  boolean requestIsNotify = false;
+  boolean currentLineIsBlank = false;
   int result = NOP;
   String linebuf;
   int lineindex = 0;
   char c;
-  if (client->connected()) {
-    client->println("220 arduino smtp server");
-  }
   int smtpState = STATE_PREAMBLE;
   while (client->connected() && smtpState != STATE_QUIT) {
     if (!client->available()) {
       delay(1);
       continue;
     }
-    c = client->read();    
+    c = client->read();
+    /*
+    Serial.print(smtpState, DEC);
+    Serial.print(" ");
+    Serial.print(c);
+    Serial.print(" '");
+    Serial.print(linebuf);
+    Serial.println("'");
+    */
     switch (smtpState) {
       case STATE_PREAMBLE:
         linebuf += String(c);
@@ -147,6 +166,9 @@ int processSmtp(Client* client) {
             } else if (subject.startsWith(_inactivateText)) {
               result = INACTIVE;
             }
+            Serial.print("Subject: ");
+            //Serial.println(subject);
+            Serial.println(result, DEC);
             smtpState = STATE_FIND_BODYEND;
           }
         } else if (linebuf.equals("\r")) {
@@ -163,13 +185,15 @@ int processSmtp(Client* client) {
         }
         break;
       case STATE_FIND_BODYEND:
-        if (linebuf.length() == 0 && c == '.') {
+        if (currentLineIsBlank && c == '.') {
           linebuf = String(c);
           smtpState = STATE_MAYBE_BODYEND;
         }
+        break;
       case STATE_MAYBE_BODYEND:
         linebuf += String(c);
         if (linebuf.equals(".\r\n")) {
+          client->println("250 Ok");
           smtpState = STATE_PREAMBLE;
         } else if (!linebuf.equals(".\r")) {
           smtpState = STATE_FIND_BODYEND;
@@ -177,7 +201,10 @@ int processSmtp(Client* client) {
         break;
     }
     if (c == '\n') {
-      linebuf = String(); 
+      linebuf = String();
+      currentLineIsBlank = true;
+    } else {
+      currentLineIsBlank = false;
     }
   }
   return result;
@@ -186,7 +213,8 @@ int processSmtp(Client* client) {
 // 
 int sendResponseFor(Client* client, String* line) {
   int nextState = STATE_PREAMBLE;
-  if (line->startsWith(SMTP_HELO)) {
+  Serial.print(*line);
+  if (line->startsWith(SMTP_HELO) || line->startsWith(SMTP_EHLO)) {
     client->print("250 ");
     client->println(_fqdn);
   } else if (line->startsWith(SMTP_MAIL)) {
@@ -199,7 +227,8 @@ int sendResponseFor(Client* client, String* line) {
   } else if (line->startsWith(SMTP_QUIT)) {
     client->println("221 Ok");
     nextState = STATE_QUIT;
-  }  
+  }
+  return nextState;
 }
 
 const String Q_ENCODE_HEAD = "=?UTF-8?Q?";
@@ -243,7 +272,6 @@ String readFile(char* filename) {
   // re-open the file for reading:
   File file = SD.open(filename);
   if (file) {    
-    Serial.println("file open");
     // read from the file until there's nothing else in it:
     char buf[32];
     int pos = 0;
