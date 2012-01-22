@@ -144,7 +144,7 @@ void loop() {
     }
     client.stop();
     Serial.println(body);
-    if (body.startsWith("{\"result\":\"SUCCESS\"")) {
+    if (body.startsWith("{\"result\":\"SUCCESS\"}")) {
       Serial.println("stable");
     } else {
       Serial.println("unstable");
