@@ -19,12 +19,9 @@ const int SD_CS_PIN   = 4;
 
 const int PLAY_REPEAT_NUM = 10;
 
-const int STATE_PREAMBLE             = 0;
-const int STATE_HEADER_MAYBE_SUBJECT = 1;
-const int STATE_SKIP_HEADER          = 2;
-const int STATE_FIND_BODYEND         = 3;
-const int STATE_MAYBE_BODYEND        = 4;
-const int STATE_QUIT                 = 5;
+const int STATE_HEADER = 0;
+const int STATE_MAYBE_HEADEREND = 1;
+const int STATE_BODY   = 2;
 
 const int ACTIVE = 1;
 const int INACTIVE = 0;
@@ -41,19 +38,16 @@ const String HEADER_SUBJECT = "Subject: ";
 
 // Enter a MAC address and IP address
 byte MAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-byte IP[5]; // 4 bytes + String Terminator
 
-String _fqdn, _activateText, _inactivateText;
 int _state = INACTIVE;
 
 const int BUFFER_SIZE = 256;
 
-//Server server(25);
-
 boolean interrupted = false;
 
-
 EthernetClient client;
+IPAddress server;
+int port;
 
 void setup() {
   pinMode(SWITCH_PIN, INPUT);
@@ -79,7 +73,7 @@ void setup() {
   }
   
   // print your local IP address:
-  Serial.print("My IP address: ");
+  Serial.print("IP address: ");
   for (byte thisByte = 0; thisByte < 4; thisByte++) {
     // print the value of each byte of the IP address:
     Serial.print(Ethernet.localIP()[thisByte], DEC);
@@ -88,19 +82,9 @@ void setup() {
   Serial.println();
   
   delay(1000);
-
-  IPAddress server(133,242,22,208); 
-
-  if (client.connect(server, 8080)) {
-    Serial.println("connected");
-    // Make a HTTP request:
-    client.println("GET /jenkins/job/hiyoko/api/json HTTP/1.0");
-    client.println();
-  } 
-  else {
-    // kf you didn't get a connection to the server:
-    Serial.println("connection failed");
-  }
+  
+  server = IPAddress(133,242,22,208);
+  port = 8080;
   
 /*
   readFile("ipaddr.bin").getBytes(IP, 5);
@@ -126,22 +110,54 @@ void setup() {
 
 void loop() {
   
-  // if there are incoming bytes available 
-  // from the server, read them and print them:
-  if (client.available()) {
-    char c = client.read();
-    Serial.print(c);
-  }
-
-  // if the server's disconnected, stop the client:
-  if (!client.connected()) {
-    Serial.println();
-    Serial.println("disconnecting.");
+  if (client.connect(server, port)) {
+    Serial.println("connected");
+    // Make a HTTP request:
+    client.println("GET /jenkins/job/hiyoko/lastBuild/api/json?tree=result HTTP/1.0");
+    client.println();
+    Serial.println("request done. wait for response.");
+    int state = STATE_HEADER;
+    boolean lineIsBlank = true;
+    String body = "";
+    while (client.connected()) {
+      // if there are incoming bytes available 
+      // from the server, read them and print them:
+      if (client.available()) {
+        char c = client.read();
+        if (state == STATE_HEADER) {
+          if (lineIsBlank && c == 0x0D) {
+            state = STATE_MAYBE_HEADEREND;
+          } else {
+            lineIsBlank = (c == 0x0A);
+          }
+        } else if (state == STATE_MAYBE_HEADEREND) {
+          state = (c == 0x0A) ? STATE_BODY : STATE_HEADER; 
+        } else if (state == STATE_BODY) {
+          body += String(c);
+        } else {
+          Serial.println("invalid state");
+          break;
+        }
+      } else {
+        delay(100); 
+      }
+    }
     client.stop();
-
-    // do nothing forevermore:
-    while(true);
-  }
+    Serial.println(body);
+    if (body.startsWith("{\"result\":\"SUCCESS\"")) {
+      Serial.println("stable");
+    } else {
+      Serial.println("unstable");
+    }
+    Serial.println("connection completed");
+  } else {
+    // kf you didn't get a connection to the server:
+    Serial.println("connection failed");
+    return;
+  }  
+  
+  delay(15000);
+ 
 /* 
   while (!server.established()) {
     delay(5);
@@ -180,6 +196,8 @@ void loop() {
 */
 }
 
+
+/*
 int processSmtp(Client* client) {
   boolean currentLineMayBeSubject = true;
   boolean readingHeader = true;
@@ -340,6 +358,8 @@ String readFile(char* filename) {
   }
   return data;
 }
+
+*/
 
 void interrupt() {
   interrupted = true;
