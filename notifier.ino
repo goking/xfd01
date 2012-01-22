@@ -1,6 +1,7 @@
 /*
-  Notifier
+  Notifier 
   
+  A XFD for jenkins used project.
   Turns a read relay and sounds on when recive http request.
   
 */
@@ -47,9 +48,12 @@ int _state = INACTIVE;
 
 const int BUFFER_SIZE = 256;
 
-Server server(25);
+//Server server(25);
 
 boolean interrupted = false;
+
+
+EthernetClient client;
 
 void setup() {
   pinMode(SWITCH_PIN, INPUT);
@@ -66,7 +70,39 @@ void setup() {
   }
 
   Serial.begin(9600);
+  
+  // start the Ethernet connection:
+  while (Ethernet.begin(MAC) == 0) {
+    Serial.println("Failed to configure Ethernet using DHCP. Try again...");
+    // no point in carrying on, so do nothing forevermore:
+    delay(15000);
+  }
+  
+  // print your local IP address:
+  Serial.print("My IP address: ");
+  for (byte thisByte = 0; thisByte < 4; thisByte++) {
+    // print the value of each byte of the IP address:
+    Serial.print(Ethernet.localIP()[thisByte], DEC);
+    Serial.print("."); 
+  }
+  Serial.println();
+  
+  delay(1000);
 
+  IPAddress server(133,242,22,208); 
+
+  if (client.connect(server, 8080)) {
+    Serial.println("connected");
+    // Make a HTTP request:
+    client.println("GET /jenkins/job/hiyoko/api/json HTTP/1.0");
+    client.println();
+  } 
+  else {
+    // kf you didn't get a connection to the server:
+    Serial.println("connection failed");
+  }
+  
+/*
   readFile("ipaddr.bin").getBytes(IP, 5);
   Serial.println(IP[0],DEC);
   Serial.println(IP[1],DEC);
@@ -83,11 +119,30 @@ void setup() {
   Serial.println(_activateText);
   _inactivateText = readFile("off.txt");
   Serial.println(_inactivateText);
+*/
 
   attachInterrupt(0, interrupt, FALLING);
 }
 
 void loop() {
+  
+  // if there are incoming bytes available 
+  // from the server, read them and print them:
+  if (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+  }
+
+  // if the server's disconnected, stop the client:
+  if (!client.connected()) {
+    Serial.println();
+    Serial.println("disconnecting.");
+    client.stop();
+
+    // do nothing forevermore:
+    while(true);
+  }
+/* 
   while (!server.established()) {
     delay(5);
   }  
@@ -110,20 +165,19 @@ void loop() {
     if (_state == INACTIVE) {
       interrupted = false;
       digitalWrite(LED_PIN, HIGH);
-      /*
       digitalWrite(RELAY_PIN, HIGH);
       for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
         boolean completed = playTone();
         if (!completed) break; 
       }
-      */
     }
     _state = ACTIVE;
   } else if (result == INACTIVE) {
     digitalWrite(LED_PIN, LOW);
-    //digitalWrite(RELAY_PIN, LOW);
+    digitalWrite(RELAY_PIN, LOW);
     _state = INACTIVE;
   }
+*/
 }
 
 int processSmtp(Client* client) {
@@ -141,14 +195,6 @@ int processSmtp(Client* client) {
       continue;
     }
     c = client->read();
-    /*
-    Serial.print(smtpState, DEC);
-    Serial.print(" ");
-    Serial.print(c);
-    Serial.print(" '");
-    Serial.print(linebuf);
-    Serial.println("'");
-    */
     switch (smtpState) {
       case STATE_PREAMBLE:
         linebuf += String(c);
@@ -167,7 +213,7 @@ int processSmtp(Client* client) {
               result = INACTIVE;
             }
             Serial.print("Subject: ");
-            //Serial.println(subject);
+            Serial.println(subject);
             Serial.println(result, DEC);
             smtpState = STATE_FIND_BODYEND;
           }
@@ -247,7 +293,12 @@ String parseHeaderValue(Client* client) {
   int index = 0;
   while (true) {
     int head = raw.indexOf(Q_ENCODE_HEAD, index);
-    if (head == -1) break;
+    if (head == -1) {
+      if (index == 0) {
+        value = raw;
+      }
+      break;
+    }
     index = head + Q_ENCODE_HEAD.length();
     int tail = raw.indexOf(Q_ENCODE_TAIL, index);
     while (index < tail) {
@@ -264,6 +315,7 @@ String parseHeaderValue(Client* client) {
       }   
     }
   }
+  return value;
 }
 
 String readFile(char* filename) {
