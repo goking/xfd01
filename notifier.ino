@@ -19,9 +19,9 @@ const int SD_CS_PIN   = 4;
 
 const int PLAY_REPEAT_NUM = 10;
 
-const int STATE_HEADER = 0;
-const int STATE_MAYBE_HEADEREND = 1;
-const int STATE_BODY   = 2;
+const int HTTP_HEADER = 0;
+const int HTTP_MAYBE_BLANKLINE = 1;
+const int HTTP_BODY   = 2;
 
 const int ACTIVE = 1;
 const int INACTIVE = 0;
@@ -116,7 +116,7 @@ void loop() {
     client.println("GET /jenkins/job/hiyoko/lastBuild/api/json?tree=result HTTP/1.0");
     client.println();
     Serial.println("request done. wait for response.");
-    int state = STATE_HEADER;
+    int httpState = HTTP_HEADER;
     boolean lineIsBlank = true;
     String body = "";
     while (client.connected()) {
@@ -124,15 +124,15 @@ void loop() {
       // from the server, read them and print them:
       if (client.available()) {
         char c = client.read();
-        if (state == STATE_HEADER) {
+        if (httpState == HTTP_HEADER) {
           if (lineIsBlank && c == 0x0D) {
-            state = STATE_MAYBE_HEADEREND;
+            httpState = HTTP_MAYBE_BLANKLINE;
           } else {
             lineIsBlank = (c == 0x0A);
           }
-        } else if (state == STATE_MAYBE_HEADEREND) {
-          state = (c == 0x0A) ? STATE_BODY : STATE_HEADER; 
-        } else if (state == STATE_BODY) {
+        } else if (httpState == HTTP_MAYBE_BLANKLINE) {
+          httpState = (c == 0x0A) ? HTTP_BODY : HTTP_HEADER; 
+        } else if (httpState == HTTP_BODY) {
           body += String(c);
         } else {
           Serial.println("invalid state");
