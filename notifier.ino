@@ -58,15 +58,10 @@ void setup() {
   
   // start the Ethernet connection:
   while (Ethernet.begin(MAC) == 0) {
-//    Serial.println("DHCP error");
-    // no point in carrying on, so do nothing forevermore:
     delay(15000);
   }
   
-  //print your local IP address:
-//  Serial.print("myaddr: ");
-//  Serial.println(Ethernet.localIP());
-  
+  // wait for dhcp server
   delay(1000);
   
   String rhost = readFile("jenkins.txt");
@@ -80,9 +75,6 @@ void setup() {
     port = stoi(rhost.substring(colon + 1));
     rhost = rhost.substring(0, colon);
   }
-//  Serial.println("remote host: " + rhost);
-//  Serial.print("remote port: ");
-//  Serial.println(port, DEC);
   rhost.toCharArray(remoteHost, sizeof(remoteHost));
   
   attachInterrupt(0, interrupt, FALLING);
@@ -91,17 +83,14 @@ void setup() {
 void loop() {
   
   if (!client.connect(remoteHost, port)) {
-    // kf you didn't get a connection to the server:
     wait(15000, 100);
     return;
   }  
     
   // Make a HTTP request:
   String requestLine = "GET " + baseuri + "/lastBuild/api/json?tree=result HTTP/1.0";
-  Serial.println(requestLine);
   client.println(requestLine);
   client.println();
-//    Serial.println("wait for response");
   int httpState = HTTP_HEADER;
   boolean lineIsBlank = true;
   String body = "";
@@ -121,7 +110,7 @@ void loop() {
       } else if (httpState == HTTP_BODY) {
         body += String(c);
       } else {
-//          Serial.println("invalid state");
+        // invalid state
         break;
       }
     } else {
@@ -131,7 +120,6 @@ void loop() {
   client.stop();
   Serial.println(body);
   if (body.startsWith("{\"result\":\"SUCCESS\"}")) {
-//    Serial.println("stable");
     digitalWrite(LED_PIN, LOW);
     digitalWrite(RELAY_PIN, LOW);
     if (lastBuildState == BUILD_UNSTABLE) {
@@ -140,7 +128,6 @@ void loop() {
     }
     lastBuildState = BUILD_STABLE;
   } else if (lastBuildState == BUILD_STABLE) {
-//    Serial.println("fall unstable");
     digitalWrite(LED_PIN, HIGH);
     digitalWrite(RELAY_PIN, HIGH);
     interrupted = false;
@@ -149,154 +136,12 @@ void loop() {
     }
     lastBuildState = BUILD_UNSTABLE;
   } else {
-//    Serial.println("still unstable");
     // nothing to do. 
   }
   
   wait(15000, 2000);
 }
 
-
-/*
-int processSmtp(Client* client) {
-  boolean currentLineMayBeSubject = true;
-  boolean readingHeader = true;
-  boolean currentLineIsBlank = false;
-  int result = NOP;
-  String linebuf;
-  int lineindex = 0;
-  char c;
-  int smtpState = STATE_PREAMBLE;
-  while (client->connected() && smtpState != STATE_QUIT) {
-    if (!client->available()) {
-      delay(1);
-      continue;
-    }
-    c = client->read();
-    switch (smtpState) {
-      case STATE_PREAMBLE:
-        linebuf += String(c);
-        if (linebuf.endsWith("\r\n")) {
-          smtpState = sendResponseFor(client, &linebuf);
-        }
-        break;
-      case STATE_HEADER_MAYBE_SUBJECT:
-        linebuf += String(c);
-        if (HEADER_SUBJECT.startsWith(linebuf)) {
-          if (linebuf.length() == HEADER_SUBJECT.length()) {
-            String subject = parseHeaderValue(client);
-            if (subject.startsWith(_activateText)) {
-              result = ACTIVE;
-            } else if (subject.startsWith(_inactivateText)) {
-              result = INACTIVE;
-            }
-            Serial.print("Subject: ");
-            Serial.println(subject);
-            Serial.println(result, DEC);
-            smtpState = STATE_FIND_BODYEND;
-          }
-        } else if (linebuf.equals("\r")) {
-          smtpState = STATE_FIND_BODYEND;
-        } else if (linebuf.equals(".")) {
-          smtpState = STATE_MAYBE_BODYEND;
-        } else {
-          smtpState = STATE_SKIP_HEADER;
-        }
-        break;
-      case STATE_SKIP_HEADER:
-        if (c == '\n') {
-          smtpState = STATE_HEADER_MAYBE_SUBJECT; 
-        }
-        break;
-      case STATE_FIND_BODYEND:
-        if (currentLineIsBlank && c == '.') {
-          linebuf = String(c);
-          smtpState = STATE_MAYBE_BODYEND;
-        }
-        break;
-      case STATE_MAYBE_BODYEND:
-        linebuf += String(c);
-        if (linebuf.equals(".\r\n")) {
-          client->println("250 Ok");
-          smtpState = STATE_PREAMBLE;
-        } else if (!linebuf.equals(".\r")) {
-          smtpState = STATE_FIND_BODYEND;
-        }
-        break;
-    }
-    if (c == '\n') {
-      linebuf = String();
-      currentLineIsBlank = true;
-    } else {
-      currentLineIsBlank = false;
-    }
-  }
-  return result;
-}
-
-// 
-int sendResponseFor(Client* client, String* line) {
-  int nextState = STATE_PREAMBLE;
-  Serial.print(*line);
-  if (line->startsWith(SMTP_HELO) || line->startsWith(SMTP_EHLO)) {
-    client->print("250 ");
-    client->println(_fqdn);
-  } else if (line->startsWith(SMTP_MAIL)) {
-    client->println("250 Ok");
-  } else if (line->startsWith(SMTP_RCPT)) {
-    client->println("250 Ok");
-  } else if (line->startsWith(SMTP_DATA)) {
-    client->println("354 Send it");
-    nextState = STATE_HEADER_MAYBE_SUBJECT;
-  } else if (line->startsWith(SMTP_QUIT)) {
-    client->println("221 Ok");
-    nextState = STATE_QUIT;
-  }
-  return nextState;
-}
-
-const String Q_ENCODE_HEAD = "=?UTF-8?Q?";
-const String Q_ENCODE_TAIL = "?=";
-
-String parseHeaderValue(Client* client) {
-  String raw;
-  while (client->connected() && client->available()) {
-    char c = client->read();
-    if (c == '\n') break;
-    if (c != '\r') {
-      raw += String(c);
-    }
-  }
-  String value;
-  int index = 0;
-  while (true) {
-    int head = raw.indexOf(Q_ENCODE_HEAD, index);
-    if (head == -1) {
-      if (index == 0) {
-        value = raw;
-      }
-      break;
-    }
-    index = head + Q_ENCODE_HEAD.length();
-    int tail = raw.indexOf(Q_ENCODE_TAIL, index);
-    while (index < tail) {
-      if (raw.charAt(index) == '=') {
-        char buf[3];
-        int v;
-        String hex = raw.substring(index + 1, index + 3);
-        hex.toCharArray(buf, 3);
-        sscanf(buf, "%x", &v);
-        value += String((char)v);
-        index += 4;
-      } else {
-        value += String(raw.charAt(index++));
-      }   
-    }
-  }
-  return value;
-}
-
-*/
 
 String readFile(char* filename) {
   String data;
