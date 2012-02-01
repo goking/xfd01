@@ -26,15 +26,6 @@ const int HTTP_BODY   = 2;
 const int BUILD_STABLE = 0;
 const int BUILD_UNSTABLE = 1;
 
-const String SMTP_HELO = "HELO";
-const String SMTP_EHLO = "EHLO";
-const String SMTP_MAIL = "MAIL";
-const String SMTP_RCPT = "RCPT";
-const String SMTP_DATA = "DATA";
-const String SMTP_QUIT = "QUIT";
-
-const String HEADER_SUBJECT = "Subject: ";
-
 // Enter a MAC address and IP address
 byte MAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
