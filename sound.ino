@@ -2,12 +2,12 @@
 
 // notes in the alert melody:
 const int alertMelody[] = {
-  NOTE_B6, NOTE_G6, NOTE_B6, NOTE_G6, NOTE_B6, NOTE_G6, NOTE_B6, NOTE_G6 
+  NOTE_B6, NOTE_G6
 };
 
 // note durations: 4 = quarter note, 8 = eighth note, etc.:
 const int alertNoteDurations[] = {
-  4, 4, 4, 4, 4, 4, 4, 4 
+  4, 4 
 };
 
 const int clearMelody[] = {
@@ -36,30 +36,14 @@ boolean playMelody(const int* melody, const int* noteDurations) {
     int noteDuration = 1000 / noteDurations[thisNote];
     if (melody[thisNote] > 0) {
       tone(BUZZER_PIN, melody[thisNote]);
-    }  
-
-    boolean cont = waitUntilBreak(noteDuration);
-    noTone(BUZZER_PIN);
-    if (!cont) {
-      break;
     }
-    int pauseBetweenNotes = noteDuration * 0.30;
-    if (!waitUntilBreak(pauseBetweenNotes)) {
+    delay(noteDuration);
+    noTone(BUZZER_PIN);
+    delay(noteDuration * 0.30);
+    if (interrupted) {
       break; 
     }
     toneCount++;
   }
   return toneCount == sizeof(melody);
 }
-
-boolean waitUntilBreak(int duration) {
-  int count = duration / 5;
-  for (int i = 0; i < count; i++) {
-    if (interrupted) {
-      return false;
-    }
-    delay(5);
-  }
-  return true;
-}
-

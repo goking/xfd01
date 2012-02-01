@@ -17,7 +17,7 @@ const int BUZZER_PIN  = 6;
 const int RELAY_PIN   = 5;
 const int SD_CS_PIN   = 4;
 
-const int PLAY_REPEAT_NUM = 10;
+const int PLAY_REPEAT_NUM = 50;
 
 const int HTTP_HEADER = 0;
 const int HTTP_MAYBE_BLANKLINE = 1;
