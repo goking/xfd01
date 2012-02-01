@@ -34,8 +34,9 @@ const int BUFFER_SIZE = 256;
 boolean interrupted = false;
 
 EthernetClient client;
-IPAddress server;
-int port;
+char remoteHost[256];
+String baseuri;
+int port = 8080;
 
 int lastBuildState = BUILD_STABLE;
 
@@ -68,119 +69,91 @@ void setup() {
   
   delay(1000);
   
-  server = IPAddress(133,242,22,208);
-  port = 8080;
+  String rhost = readFile("jenkins.txt");
+  int slash = rhost.indexOf("/");
+  if (slash != -1) {
+    baseuri = rhost.substring(slash);
+    rhost = rhost.substring(0, slash); 
+  }
+  int colon = rhost.indexOf(":");
+  if (colon != -1) {
+    port = stoi(rhost.substring(colon + 1));
+    rhost = rhost.substring(0, colon);
+  }
+//  Serial.println("remote host: " + rhost);
+//  Serial.print("remote port: ");
+//  Serial.println(port, DEC);
+  rhost.toCharArray(remoteHost, sizeof(remoteHost));
   
-/*
-  readFile("ipaddr.bin").getBytes(IP, 5);
-  Serial.println(IP[0],DEC);
-  Serial.println(IP[1],DEC);
-  Serial.println(IP[2],DEC);
-  Serial.println(IP[3],DEC);
-
-  Ethernet.begin(MAC, IP);
-  server.begin();
-  
-  Serial.println("SD CARD!");
-  _fqdn = readFile("fqdn.txt");
-  Serial.println(_fqdn);
-  _activateText = readFile("on.txt");
-  Serial.println(_activateText);
-  _inactivateText = readFile("off.txt");
-  Serial.println(_inactivateText);
-*/
-
   attachInterrupt(0, interrupt, FALLING);
 }
 
 void loop() {
   
-  if (client.connect(server, port)) {
-    Serial.println("connected");
-    // Make a HTTP request:
-    client.println("GET /jenkins/job/hiyoko/lastBuild/api/json?tree=result HTTP/1.0");
-    client.println();
-    Serial.println("request done. wait for response.");
-    int httpState = HTTP_HEADER;
-    boolean lineIsBlank = true;
-    String body = "";
-    while (client.connected()) {
-      // if there are incoming bytes available 
-      // from the server, read them and print them:
-      if (client.available()) {
-        char c = client.read();
-        if (httpState == HTTP_HEADER) {
-          if (lineIsBlank && c == 0x0D) {
-            httpState = HTTP_MAYBE_BLANKLINE;
-          } else {
-            lineIsBlank = (c == 0x0A);
-          }
-        } else if (httpState == HTTP_MAYBE_BLANKLINE) {
-          httpState = (c == 0x0A) ? HTTP_BODY : HTTP_HEADER; 
-        } else if (httpState == HTTP_BODY) {
-          body += String(c);
-        } else {
-          Serial.println("invalid state");
-          break;
-        }
-      } else {
-        delay(100); 
-      }
-    }
-    client.stop();
-    Serial.println(body);
-    if (body.startsWith("{\"result\":\"SUCCESS\"}")) {
-      Serial.println("stable");
-      digitalWrite(LED_PIN, LOW);
-      digitalWrite(RELAY_PIN, LOW);
-      if (lastBuildState == BUILD_UNSTABLE) {
-        interrupted = false;
-        playClear();
-      }
-      lastBuildState = BUILD_STABLE;
-    } else if (lastBuildState == BUILD_STABLE) {
-      Serial.println("turn into unstable");
-      digitalWrite(LED_PIN, HIGH);
-      digitalWrite(RELAY_PIN, HIGH);
-      interrupted = false;
-      for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
-        boolean completed = playAlert();
-        if (!completed) break;
-      }
-      lastBuildState = BUILD_UNSTABLE;
-    } else {
-      Serial.println("still unstable");
-      // nothing to do. 
-    }
-    Serial.println("connection completed");
-  } else {
+  if (!client.connect(remoteHost, port)) {
     // kf you didn't get a connection to the server:
-    Serial.println("connection failed");
+    wait(15000, 100);
     return;
   }  
-  
-  delay(15000);
- 
-/* 
-  while (!server.established()) {
-    delay(5);
-  }  
-  server.write("220 arduino smtp server\r\n");
-  // listen for incoming clients 
-  int result = NOP;
-  while(server.established()) {
-    Client client = server.available();
-    if (client) { 
-      result = processSmtp(&client);
-      // give the web browser time to receive the data
-      delay(5);
-      // close the connection:
-      client.stop();
-      break;
+    
+  // Make a HTTP request:
+  String requestLine = "GET " + baseuri + "/lastBuild/api/json?tree=result HTTP/1.0";
+  Serial.println(requestLine);
+  client.println(requestLine);
+  client.println();
+//    Serial.println("wait for response");
+  int httpState = HTTP_HEADER;
+  boolean lineIsBlank = true;
+  String body = "";
+  while (client.connected()) {
+    // if there are incoming bytes available 
+    // from the server, read them and print them:
+    if (client.available()) {
+      char c = client.read();
+      if (httpState == HTTP_HEADER) {
+        if (lineIsBlank && c == 0x0D) {
+          httpState = HTTP_MAYBE_BLANKLINE;
+        } else {
+          lineIsBlank = (c == 0x0A);
+        }
+      } else if (httpState == HTTP_MAYBE_BLANKLINE) {
+        httpState = (c == 0x0A) ? HTTP_BODY : HTTP_HEADER; 
+      } else if (httpState == HTTP_BODY) {
+        body += String(c);
+      } else {
+//          Serial.println("invalid state");
+        break;
+      }
+    } else {
+      delay(100); 
     }
   }
+  client.stop();
+  Serial.println(body);
+  if (body.startsWith("{\"result\":\"SUCCESS\"}")) {
+//    Serial.println("stable");
+    digitalWrite(LED_PIN, LOW);
+    digitalWrite(RELAY_PIN, LOW);
+    if (lastBuildState == BUILD_UNSTABLE) {
+      interrupted = false;
+      playClear();
+    }
+    lastBuildState = BUILD_STABLE;
+  } else if (lastBuildState == BUILD_STABLE) {
+//    Serial.println("fall unstable");
+    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(RELAY_PIN, HIGH);
+    interrupted = false;
+    for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
+      if (!playAlert()) break;
+    }
+    lastBuildState = BUILD_UNSTABLE;
+  } else {
+//    Serial.println("still unstable");
+    // nothing to do. 
+  }
   
-*/
+  wait(15000, 2000);
 }
 
 
@@ -323,22 +296,16 @@ String parseHeaderValue(Client* client) {
   return value;
 }
 
+*/
+
 String readFile(char* filename) {
   String data;
   
   // re-open the file for reading:
   File file = SD.open(filename);
-  if (file) {    
-    // read from the file until there's nothing else in it:
-    char buf[32];
-    int pos = 0;
-    while (file.available()) { 
-      buf[pos++] = (char)file.read();
-      if (pos >= 31 || !file.available()) {
-        buf[pos] = 0;
-        data += String(buf);
-        pos = 0;
-      }
+  if (file) {
+    while (file.available() && data.length() < BUFFER_SIZE) { 
+      data += (char)file.read();
     }
     // close the file:
     file.close();
@@ -346,7 +313,21 @@ String readFile(char* filename) {
   return data;
 }
 
-*/
+void wait(int duration, int interval) {
+  int count = duration / interval;
+  for (int i = 0; i < count; ++i) {
+    digitalWrite(LED_PIN, HIGH);
+    delay(interval / 2);
+    digitalWrite(LED_PIN, LOW);
+    delay(interval / 2);
+  }  
+}
+
+int stoi(String str) {
+  char buf[20];
+  str.toCharArray(buf, sizeof(buf));
+  return atoi(buf);
+}
 
 void interrupt() {
   interrupted = true;
