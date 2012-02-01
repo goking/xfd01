@@ -23,9 +23,8 @@ const int HTTP_HEADER = 0;
 const int HTTP_MAYBE_BLANKLINE = 1;
 const int HTTP_BODY   = 2;
 
-const int ACTIVE = 1;
-const int INACTIVE = 0;
-const int NOP = -1;
+const int BUILD_STABLE = 0;
+const int BUILD_UNSTABLE = 1;
 
 const String SMTP_HELO = "HELO";
 const String SMTP_EHLO = "EHLO";
@@ -39,8 +38,6 @@ const String HEADER_SUBJECT = "Subject: ";
 // Enter a MAC address and IP address
 byte MAC[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
-int _state = INACTIVE;
-
 const int BUFFER_SIZE = 256;
 
 boolean interrupted = false;
@@ -48,6 +45,8 @@ boolean interrupted = false;
 EthernetClient client;
 IPAddress server;
 int port;
+
+int lastBuildState = BUILD_STABLE;
 
 void setup() {
   pinMode(SWITCH_PIN, INPUT);
@@ -146,8 +145,26 @@ void loop() {
     Serial.println(body);
     if (body.startsWith("{\"result\":\"SUCCESS\"}")) {
       Serial.println("stable");
+      digitalWrite(LED_PIN, LOW);
+      digitalWrite(RELAY_PIN, LOW);
+      if (lastBuildState == BUILD_UNSTABLE) {
+        interrupted = false;
+        playClear();
+      }
+      lastBuildState = BUILD_STABLE;
+    } else if (lastBuildState == BUILD_STABLE) {
+      Serial.println("turn into unstable");
+      digitalWrite(LED_PIN, HIGH);
+      digitalWrite(RELAY_PIN, HIGH);
+      interrupted = false;
+      for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
+        boolean completed = playAlert();
+        if (!completed) break;
+      }
+      lastBuildState = BUILD_UNSTABLE;
     } else {
-      Serial.println("unstable");
+      Serial.println("still unstable");
+      // nothing to do. 
     }
     Serial.println("connection completed");
   } else {
@@ -177,22 +194,6 @@ void loop() {
     }
   }
   
-  if (result == ACTIVE) {
-    if (_state == INACTIVE) {
-      interrupted = false;
-      digitalWrite(LED_PIN, HIGH);
-      digitalWrite(RELAY_PIN, HIGH);
-      for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
-        boolean completed = playTone();
-        if (!completed) break; 
-      }
-    }
-    _state = ACTIVE;
-  } else if (result == INACTIVE) {
-    digitalWrite(LED_PIN, LOW);
-    digitalWrite(RELAY_PIN, LOW);
-    _state = INACTIVE;
-  }
 */
 }
 
