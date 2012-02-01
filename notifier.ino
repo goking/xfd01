@@ -57,7 +57,7 @@ void setup() {
   
   // start the Ethernet connection:
   while (Ethernet.begin(MAC) == 0) {
-    Serial.println("Failed to configure Ethernet using DHCP. Try again...");
+//    Serial.println("DHCP error");
     // no point in carrying on, so do nothing forevermore:
     delay(15000);
   }
