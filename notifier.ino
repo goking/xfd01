@@ -34,7 +34,7 @@ const int BUFFER_SIZE = 256;
 boolean interrupted = false;
 
 EthernetClient client;
-char remoteHost[256];
+char remoteHost[80];
 String baseuri;
 int port = 8080;
 
