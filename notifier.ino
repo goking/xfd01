@@ -64,6 +64,8 @@ void setup() {
   // wait for dhcp server
   delay(1000);
   
+  //Serial.println(Ethernet.localIP());
+
   String rhost = readFile("jenkins.txt");
   int slash = rhost.indexOf("/");
   if (slash != -1) {
@@ -91,6 +93,7 @@ void loop() {
   String requestLine = "GET " + baseuri + "/lastBuild/api/json?tree=result HTTP/1.0";
   client.println(requestLine);
   client.println();
+  Serial.println(requestLine);
   int httpState = HTTP_HEADER;
   boolean lineIsBlank = true;
   String body = "";
