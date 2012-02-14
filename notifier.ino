@@ -119,7 +119,20 @@ void loop() {
   }
   client.stop();
   Serial.println(body);
-  if (body.startsWith("{\"result\":\"SUCCESS\"}")) {
+  int colon = body.indexOf(":");
+  String result = (colon != -1) ? body.substring(colon + 1) : "";
+  if (result.startsWith("\"UNSTABLE\"") || result.startsWith("\"FAILURE\"")) {
+    
+    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(RELAY_PIN, HIGH);
+    if (lastBuildState == BUILD_STABLE) {
+      interrupted = false;
+      for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
+        if (!playAlert()) break;
+      }
+    }
+    lastBuildState = BUILD_UNSTABLE;
+  } else if (!result.startsWith("null")) {
     digitalWrite(LED_PIN, LOW);
     digitalWrite(RELAY_PIN, LOW);
     if (lastBuildState == BUILD_UNSTABLE) {
@@ -127,14 +140,6 @@ void loop() {
       playClear();
     }
     lastBuildState = BUILD_STABLE;
-  } else if (lastBuildState == BUILD_STABLE) {
-    digitalWrite(LED_PIN, HIGH);
-    digitalWrite(RELAY_PIN, HIGH);
-    interrupted = false;
-    for (int i = 0; i < PLAY_REPEAT_NUM; ++i) {
-      if (!playAlert()) break;
-    }
-    lastBuildState = BUILD_UNSTABLE;
   } else {
     // nothing to do. 
   }
