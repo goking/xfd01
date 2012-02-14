@@ -164,11 +164,9 @@ String readFile(char* filename) {
 }
 
 void wait(int duration, int interval) {
-  int count = duration / interval;
+  int count = duration / interval * 2;
   for (int i = 0; i < count; ++i) {
-    digitalWrite(LED_PIN, HIGH);
-    delay(interval / 2);
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, (i % 2) ? HIGH : LOW);
     delay(interval / 2);
   }  
 }
