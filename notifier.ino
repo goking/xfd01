@@ -92,10 +92,10 @@ void loop() {
   }  
     
   // Make a HTTP request:
-  String requestLine = "GET " + baseuri + "/lastBuild/api/json?tree=result HTTP/1.0";
+  String requestLine = "GET " + baseuri + "/api/json?tree=result HTTP/1.0";
   client.println(requestLine);
   client.println();
-  Serial.println(requestLine);
+//  Serial.println(requestLine);
   int httpState = HTTP_HEADER;
   boolean lineIsBlank = true;
   String body = "";
@@ -123,11 +123,11 @@ void loop() {
     }
   }
   client.stop();
-  Serial.println(body);
+//  Serial.println(body);
   int colon = body.indexOf(":");
   String result = (colon != -1) ? body.substring(colon + 1) : "";
   if (result.startsWith("\"UNSTABLE\"") || result.startsWith("\"FAILURE\"")) {
-    
+    Serial.println(result);
     digitalWrite(LED_PIN, HIGH);
     digitalWrite(RELAY_PIN, HIGH);
     if (lastBuildState == BUILD_STABLE) {
