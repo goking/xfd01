@@ -49,6 +49,7 @@ void setup() {
   digitalWrite(SWITCH_PIN, LOW);
   digitalWrite(LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(RELAY_PIN, LOW);
   
   pinMode(SS_PIN, OUTPUT);
   if (!SD.begin(SD_CS_PIN)) {
