@@ -46,6 +46,7 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   
+  digitalWrite(SWITCH_PIN, LOW);
   digitalWrite(LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
   
